@@ -1,4 +1,3 @@
-pandas>=1.5.0
 openai>=1.0.0
 python-dotenv>=1.0.0
 tqdm>=4.66.0
@@ -6,6 +5,5 @@ streamlit>=1.32.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 numpy>=1.24.0
-streamlit==1.31.1
 pandas==2.2.0
 plotly==5.18.0
