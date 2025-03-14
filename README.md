@@ -6,11 +6,10 @@ This repository contains scripts for analyzing data about ITAM graduates and an 
 
 The dashboard provides:
 
-1. **Overview**: Summary metrics and gender distribution
-2. **Analysis by Bachelor Program**: Distribution of graduates across programs and gender breakdown
+1. **Overview**: Summary metrics 
+2. **Analysis by Bachelor Program**: Distribution of graduates across programs
 3. **Graduation Trends Over Time**: Year-by-year analysis and program trends
-4. **Name Analysis**: Most common first names overall and by gender
-5. **Multiple Degrees**: Analysis of people who earned multiple degrees from ITAM
+4. **Multiple Degrees**: Analysis of people who earned multiple degrees from ITAM
 
 
 ## Filters
