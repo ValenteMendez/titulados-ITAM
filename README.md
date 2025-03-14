@@ -20,3 +20,7 @@ The dashboard includes filters for:
 - Bachelor programs
 
 These filters are applied across all visualizations and analyses. 
+
+## App
+
+Go to the app [ITAM Graduates Analysis](https://graduates-itam.streamlit.app/)!
