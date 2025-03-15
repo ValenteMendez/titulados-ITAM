@@ -60,7 +60,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("ITAM Graduates Analysis")
-st.markdown("<h6 style='text-align: left; color: #666; font-style: italic; margin-bottom: 30px;'>Non-official dashboard made with publicly available information, # of graduates (titulados).</h6>", unsafe_allow_html=True)
+st.markdown("<h6 style='text-align: left; color: #666; font-style: italic; margin-bottom: 30px;'>Unofficial dashboard created using publicly available data on the number of graduates ('titulados'); includes only bachelor ('licenciatura') degrees.</h6>", unsafe_allow_html=True)
 
 
 # Function to extract first name from full name
