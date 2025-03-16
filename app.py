@@ -6,6 +6,7 @@ from collections import Counter
 import numpy as np
 from io import StringIO
 import re
+import os
 
 # Set page config
 st.set_page_config(
@@ -35,6 +36,12 @@ st.markdown("""
         margin-top: 30px;
         margin-bottom: 15px;
     }
+    .section-header-compact {
+        font-size: 1.8rem;
+        color: #00723F;
+        margin-top: 10px;
+        margin-bottom: 15px;
+    }
     .subsection-header {
         font-size: 1.4rem;
         color: #00723F;
@@ -60,7 +67,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("ITAM Graduates Analysis")
-st.markdown("<h6 style='text-align: left; color: #666; font-style: italic; margin-bottom: 30px;'>Unofficial dashboard created using publicly available data on the number of graduates ('titulados'); includes only bachelor ('licenciatura') degrees.</h6>", unsafe_allow_html=True)
+st.markdown("<h6 style='text-align: left; color: #666; font-style: italic; margin-bottom: 30px;'>Unofficial dashboard created using publicly available data on the number of graduates ('titulados'); includes only bachelor ('licenciatura') degrees and covers 1951 - 2024.</h6>", unsafe_allow_html=True)
 
 
 # Function to extract first name from full name
@@ -113,12 +120,14 @@ def find_people_with_multiple_degrees(df):
     else:
         return pd.DataFrame(), pd.Series()
 
-# Use default file
-file_path = "250314_titulados-ITAM.csv"
+# Use default files
+file_path = "250314_titulados-ITAM-with-proxy.csv"
+# gender_file_path is no longer needed since gender data is now in the main file
 
 # Load data
 @st.cache_data
 def load_data(file_path):
+    # Load the data with gender information already included
     data = pd.read_csv(file_path)
     
     # Add first name column
@@ -139,69 +148,90 @@ def load_data(file_path):
     data = data[~data['Alternative name of bachelor'].astype(str).str.lower().isin(['none', 'nan'])]
     data = data[~data['Alternative name of bachelor'].isna()]
     
+    # Fill any missing gender values
+    data['Gender'] = data['Gender'].fillna('Unknown')
+    
     return data
 
 # Load the data
 data = load_data(file_path)
 
 # ===== FILTERS SECTION =====
-with st.expander("Filters", expanded=False):
-    # Year range filter
-    years = sorted(data['Year'].unique())
-    min_year = int(min(years))
-    max_year = int(max(years))
+# with st.expander("Filters", expanded=False):
+#     # Year range filter
+#     years = sorted(data['Year'].unique())
+#     min_year = int(min(years))
+#     max_year = int(max(years))
 
-    year_range = st.slider(
-        "Select Year Range",
-        min_value=min_year,
-        max_value=max_year,
-        value=(min_year, max_year)
-    )
+#     year_range = st.slider(
+#         "Select Year Range",
+#         min_value=min_year,
+#         max_value=max_year,
+#         value=(min_year, max_year)
+#     )
 
-    # Bachelor filter - changed to selectbox (dropdown)
-    # Use Alternative name of bachelor for display
-    # Convert all values to strings before sorting to avoid comparison between float and str
-    bachelor_options = sorted([str(x) for x in data['Alternative name of bachelor'].unique()])
-    selected_bachelors = st.selectbox(
-        "Select Bachelor Programs",
-        options=["All"] + bachelor_options
-    )
+#     # Bachelor filter - changed to selectbox (dropdown)
+#     # Use Alternative name of bachelor for display
+#     # Convert all values to strings before sorting to avoid comparison between float and str
+#     bachelor_options = sorted([str(x) for x in data['Alternative name of bachelor'].unique()])
+#     selected_bachelors = st.selectbox(
+#         "Select Bachelor Programs",
+#         options=["All"] + bachelor_options
+#     )
 
-    # If "All" is selected, use all bachelor options
-    if selected_bachelors == "All":
-        selected_bachelors = bachelor_options
+#     # If "All" is selected, use all bachelor options
+#     if selected_bachelors == "All":
+#         selected_bachelors = bachelor_options
 
 # Apply filters
-filtered_data = data[
-    (data['Year'] >= year_range[0]) & 
-    (data['Year'] <= year_range[1])
-]
+# filtered_data = data[
+#     (data['Year'] >= year_range[0]) & 
+#     (data['Year'] <= year_range[1])
+# ]
 
-# Apply bachelor filter
-if isinstance(selected_bachelors, list):
-    # If it's a list (All option was selected)
-    filtered_data = filtered_data[filtered_data['Alternative name of bachelor'].astype(str).isin(selected_bachelors)]
-else:
-    # If it's a single value
-    filtered_data = filtered_data[filtered_data['Alternative name of bachelor'].astype(str) == selected_bachelors]
+# # Apply bachelor filter
+# if isinstance(selected_bachelors, list):
+#     # If it's a list (All option was selected)
+#     filtered_data = filtered_data[filtered_data['Alternative name of bachelor'].astype(str).isin(selected_bachelors)]
+# else:
+#     # If it's a single value
+#     filtered_data = filtered_data[filtered_data['Alternative name of bachelor'].astype(str) == selected_bachelors]
+
+# Since filters are commented out, use all data
+filtered_data = data
 
 # ===== OVERVIEW SECTION =====
-st.markdown("<h2 class='section-header'>Overview of ITAM Graduates</h2>", unsafe_allow_html=True)
+st.markdown("<h2 class='section-header-compact'>Overview of ITAM Graduates</h2>", unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns(3)
+# Calculate gender stats
+gender_counts = filtered_data['Gender'].value_counts()
+male_count = gender_counts.get('Male', 0)
+female_count = gender_counts.get('Female', 0)
+total_graduates = len(filtered_data)
+male_percentage = male_count / total_graduates * 100 if total_graduates > 0 else 0
+female_percentage = female_count / total_graduates * 100 if total_graduates > 0 else 0
+
+# Create simple columns with only total graduates and gender distribution
+col1, col2 = st.columns(2)
 
 with col1:
-    st.metric("Total Graduates", f"{len(filtered_data):,}")
+    st.metric("Total graduates", f"{total_graduates:,}")
+    st.markdown("""
+    <div style='font-size: 0.7rem; color: #888; font-style: italic; text-align: left;'>
+        * includes cases of people with multiple degrees; counted separately
+    </div>
+    """, unsafe_allow_html=True)
     
 with col2:
-    # Count unique programs correctly using Alternative name of bachelor
-    unique_programs = filtered_data['Alternative name of bachelor'].astype(str).nunique()
-    st.metric("Number of Programs", f"{unique_programs:,}")
-    st.markdown("<p style='font-size: 0.8rem; color: #666;'>* names of old programs have been consolidated for simplicity</p>", unsafe_allow_html=True)
-    #   st.markdown("<p style='font-size: 0.8rem; color: #666;'>* 0 graduates from Artificial Intelligence Engineering program</p>", unsafe_allow_html=True)
-    
-with col3:
-    st.metric("Years Covered", f"{min(filtered_data['Year'])} - {max(filtered_data['Year'])}")
+    st.metric("Gender distribution", f"M: {male_percentage:.1f}% | F: {female_percentage:.1f}%")
+    st.markdown(f"""
+    <div style='font-size: 0.8rem; color: #666; margin-top: 0; text-align: left;'>
+        <span style='color: #004A93;'>Male: {male_count:,}</span> | <span style='color: #FF6600;'>Female: {female_count:,}</span>
+    </div>
+    <div style='font-size: 0.7rem; color: #888; font-style: italic; text-align: left;'>
+        * using names as proxy for gender
+    </div>
+    """, unsafe_allow_html=True)
 
 # Calculate bachelor counts for use in multiple sections
 bachelor_counts = filtered_data['Alternative name of bachelor'].astype(str).value_counts().reset_index()
@@ -218,7 +248,8 @@ bachelor_counts['Percentage'] = (bachelor_counts['Count'] / total_graduates * 10
 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
 st.markdown("<h2 class='section-header'>Graduation Trends Over Time</h2>", unsafe_allow_html=True)
 
-# Graduates per year with Plotly
+# Always show the main charts first (without gender breakdown)
+# Original chart without gender breakdown
 year_counts = filtered_data.groupby('Year').size().reset_index(name='Count')
 
 # Number of Graduates per Year chart
@@ -246,6 +277,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 # Year-over-year growth rate chart
 if len(year_counts) > 1:
+    # Original growth chart (total, without gender breakdown)
     year_counts['Growth'] = year_counts['Count'].pct_change() * 100
     year_counts['Growth'] = year_counts['Growth'].fillna(0)
     
@@ -280,11 +312,201 @@ if len(year_counts) > 1:
 else:
     st.info("Not enough data to calculate growth rates.")
 
+# Add option to show gender breakdown AFTER the main charts
+show_gender_breakdown = st.checkbox("*show gender breakdown by year*", key="gender_trends_checkbox")
+
+# Show gender analysis charts only if checkbox is selected
+if show_gender_breakdown:
+    st.markdown("<h3 class='subsection-header'>Gender Analysis in Graduation Trends</h3>", unsafe_allow_html=True)
+    
+    # Group by Year and Gender
+    year_gender_counts = filtered_data.groupby(['Year', 'Gender']).size().reset_index(name='Count')
+    
+    # Number of Graduates per Year by Gender chart
+    fig = px.line(
+        year_gender_counts,
+        x='Year',
+        y='Count',
+        color='Gender',
+        markers=True,
+        line_shape='linear',
+        color_discrete_map={
+            'Male': '#004A93',  # ITAM blue
+            'Female': '#FF6600',  # Orange
+            'Unknown': '#999999'  # Gray
+        }
+    )
+    fig.update_traces(marker=dict(size=8))
+    fig.update_layout(
+        title='Number of Graduates per Year by Gender',
+        xaxis_title='Year',
+        yaxis_title='Number of Graduates',
+        height=400,
+        legend_title='Gender'
+    )
+    # Add hover information
+    fig.update_traces(
+        hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Graduates: %{y:,}<extra></extra>'
+    )
+    
+    # Add a stacked bar version too
+    fig_stacked = px.bar(
+        year_gender_counts,
+        x='Year',
+        y='Count',
+        color='Gender',
+        barmode='stack',
+        color_discrete_map={
+            'Male': '#004A93',  # ITAM blue
+            'Female': '#FF6600',  # Orange
+            'Unknown': '#999999'  # Gray
+        }
+    )
+    fig_stacked.update_layout(
+        title='Number of Graduates per Year by Gender (Stacked)',
+        xaxis_title='Year',
+        yaxis_title='Number of Graduates',
+        height=400,
+        legend_title='Gender'
+    )
+    # Add hover information
+    fig_stacked.update_traces(
+        hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Graduates: %{y:,}<extra></extra>'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig_stacked, use_container_width=True)
+    
+    # Also calculate gender percentage per year
+    year_gender_pct = year_gender_counts.pivot_table(
+        index='Year', 
+        columns='Gender', 
+        values='Count', 
+        aggfunc='sum'
+    ).fillna(0)
+    
+    # Calculate percentages
+    year_gender_pct['Total'] = year_gender_pct.sum(axis=1)
+    for gender in year_gender_pct.columns:
+        if gender != 'Total':
+            year_gender_pct[f'{gender} %'] = (year_gender_pct[gender] / year_gender_pct['Total'] * 100).round(1)
+    
+    # Create a percentage chart
+    gender_pct_data = []
+    for year in year_gender_pct.index:
+        for gender in ['Male', 'Female']:
+            if gender in year_gender_pct.columns:
+                gender_pct_data.append({
+                    'Year': year,
+                    'Gender': gender,
+                    'Percentage': year_gender_pct.at[year, f'{gender} %']
+                })
+    
+    gender_pct_df = pd.DataFrame(gender_pct_data)
+    
+    # Only create this chart if we have both Male and Female data
+    if 'Male' in gender_pct_df['Gender'].unique() and 'Female' in gender_pct_df['Gender'].unique():
+        # Create a 100% stacked bar chart using a workaround since barnorm is not supported in px.bar
+        # First create a regular stacked bar chart
+        fig_pct = px.bar(
+            gender_pct_df,
+            x='Year',
+            y='Percentage',
+            color='Gender',
+            barmode='stack',
+            color_discrete_map={
+                'Male': '#004A93',  # ITAM blue
+                'Female': '#FF6600'  # Orange
+            },
+            text=None  # Remove text parameter that might be causing labels
+        )
+        
+        # Since we already calculated percentages, we don't need to normalize here
+        # Just ensure the y-axis shows percentages properly
+        
+        fig_pct.update_layout(
+            title='Gender Distribution by Year (%)',
+            xaxis_title='Year',
+            yaxis_title='Percentage (%)',
+            height=400,
+            legend_title='Gender',
+            # Set y axis properly for percentages
+            yaxis=dict(
+                range=[0, 100],
+                title='Percentage (%)'
+            )
+        )
+        
+        # Explicitly remove text labels but keep hover information
+        fig_pct.update_traces(
+            texttemplate='',  # Empty string for no text
+            textposition='none',  # Don't show text position
+            hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>'
+        )
+        
+        st.plotly_chart(fig_pct, use_container_width=True)
+    
+    # For each gender, calculate year-over-year growth
+    if len(year_counts) > 1:
+        genders_to_show = ['Male', 'Female']
+        growth_data = []
+        
+        for gender in genders_to_show:
+            if gender in year_gender_counts['Gender'].unique():
+                gender_data = year_gender_counts[year_gender_counts['Gender'] == gender]
+                gender_data = gender_data.sort_values('Year')
+                
+                if len(gender_data) > 1:
+                    # Calculate year-over-year growth
+                    gender_data['Growth'] = gender_data['Count'].pct_change() * 100
+                    gender_data['Growth'] = gender_data['Growth'].fillna(0)
+                    
+                    # Add to growth data
+                    for _, row in gender_data[1:].iterrows():  # Skip first year
+                        growth_data.append({
+                            'Year': row['Year'],
+                            'Gender': gender,
+                            'Growth': row['Growth']
+                        })
+        
+        # Create growth dataframe
+        if growth_data:
+            growth_df = pd.DataFrame(growth_data)
+            
+            # Create bar chart
+            fig = px.bar(
+                growth_df,
+                x='Year',
+                y='Growth',
+                color='Gender',
+                barmode='group',
+                color_discrete_map={
+                    'Male': '#004A93',  # ITAM blue
+                    'Female': '#FF6600'  # Orange
+                }
+            )
+            
+            fig.update_layout(
+                title='Year-over-Year Growth Rate by Gender (%)',
+                xaxis_title='Year',
+                yaxis_title='Growth Rate (%)',
+                height=400,
+                hovermode='closest',
+                legend_title='Gender'
+            )
+            
+            # Add hover information
+            fig.update_traces(
+                hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Growth Rate: %{y:.2f}%<extra></extra>'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+
 # ===== BACHELOR PROGRAM ANALYSIS SECTION =====
 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
 st.markdown("<h2 class='section-header'>Analysis by Bachelor Program</h2>", unsafe_allow_html=True)
 
-# Bachelor program distribution with Plotly
+# Bachelor program distribution with Plotly (original)
 fig = px.bar(
     bachelor_counts,
     x='Count',
@@ -311,6 +533,95 @@ fig.update_traces(
     textposition='outside'
 )
 st.plotly_chart(fig, use_container_width=True)
+
+# Option to show gender breakdown AFTER the main chart
+show_gender_by_program = st.checkbox("*show gender breakdown by program*", key="gender_program_checkbox")
+
+if show_gender_by_program:
+    st.markdown("<h3 class='subsection-header'>Gender Analysis by Bachelor Program</h3>", unsafe_allow_html=True)
+    
+    # Calculate bachelor counts by gender
+    bachelor_gender_counts = filtered_data.groupby(['Alternative name of bachelor', 'Gender']).size().reset_index()
+    bachelor_gender_counts.columns = ['Bachelor', 'Gender', 'Count']
+    
+    # Calculate total for each bachelor to get percentages
+    bachelor_totals = bachelor_gender_counts.groupby('Bachelor')['Count'].sum().reset_index()
+    bachelor_totals.columns = ['Bachelor', 'Total']
+    
+    # Merge to get percentages
+    bachelor_gender_counts = pd.merge(bachelor_gender_counts, bachelor_totals, on='Bachelor')
+    bachelor_gender_counts['Percentage'] = (bachelor_gender_counts['Count'] / bachelor_gender_counts['Total'] * 100).round(2)
+    
+    # Sort by total count
+    bachelor_order = bachelor_totals.sort_values('Total', ascending=True)['Bachelor'].tolist()
+    bachelor_gender_counts['Bachelor'] = pd.Categorical(bachelor_gender_counts['Bachelor'], categories=bachelor_order, ordered=True)
+    bachelor_gender_counts = bachelor_gender_counts.sort_values(['Bachelor', 'Gender'])
+    
+    # Filter to only include Male and Female (exclude Unknown)
+    bachelor_gender_counts = bachelor_gender_counts[bachelor_gender_counts['Gender'].isin(['Male', 'Female'])]
+    
+    # Create stacked bar chart
+    fig = px.bar(
+        bachelor_gender_counts,
+        x='Count',
+        y='Bachelor',
+        color='Gender',
+        orientation='h',
+        barmode='stack',
+        color_discrete_map={
+            'Male': '#004A93',  # ITAM blue
+            'Female': '#FF6600'  # Orange
+        },
+        hover_data=['Percentage']
+    )
+    
+    fig.update_layout(
+        title='Number of Graduates by Bachelor Program and Gender',
+        xaxis_title='Number of Graduates',
+        yaxis_title='Bachelor Program',
+        height=800,  # Increase height for better visibility of all programs
+        yaxis={'categoryorder': 'array', 'categoryarray': bachelor_order},
+        hovermode='closest',
+        legend_title='Gender'
+    )
+    
+    # Add hover information with comma separators and percentage
+    fig.update_traces(
+        hovertemplate='<b>%{y}</b> - %{fullData.name}<br>Graduates: %{x:,}<br>Percentage: %{customdata[0]:.2f}%<extra></extra>'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Create a percentage chart to show gender composition by program
+    fig_pct = px.bar(
+        bachelor_gender_counts,
+        x='Percentage',
+        y='Bachelor',
+        color='Gender',
+        orientation='h',
+        color_discrete_map={
+            'Male': '#004A93',  # ITAM blue
+            'Female': '#FF6600'  # Orange
+        }
+    )
+    
+    fig_pct.update_layout(
+        title='Gender Distribution by Bachelor Program (%)',
+        xaxis_title='Percentage (%)',
+        yaxis_title='Bachelor Program',
+        height=800,  # Increase height for better visibility of all programs
+        yaxis={'categoryorder': 'array', 'categoryarray': bachelor_order},
+        hovermode='closest',
+        legend_title='Gender'
+    )
+    
+    # Add hover information
+    fig_pct.update_traces(
+        hovertemplate='<b>%{y}</b> - %{fullData.name}<br>Percentage: %{x:.2f}%<br>Count: %{customdata:,}<extra></extra>',
+        customdata=bachelor_gender_counts['Count']
+    )
+    
+    st.plotly_chart(fig_pct, use_container_width=True)
 
 # Add analysis of bachelor program distribution by year
 st.markdown("<h3 class='subsection-header'>Bachelor Program Distribution by Year</h3>", unsafe_allow_html=True)
@@ -368,6 +679,93 @@ fig.update_traces(
 fig.update_layout(hovermode='closest')
 
 st.plotly_chart(fig, use_container_width=True)
+
+# Option to show gender distribution over time for a specific program
+show_gender_trends = st.checkbox("*show gender trends for a specific program*", key="program_gender_trends_checkbox")
+
+if show_gender_trends:
+    st.markdown("<h4 class='subsection-header'>Gender Trends by Program</h4>", unsafe_allow_html=True)
+    
+    # Get list of all bachelor programs
+    all_programs = sorted(filtered_data['Alternative name of bachelor'].astype(str).unique())
+    
+    # Let user select a program
+    selected_program = st.selectbox(
+        "Select a program to see gender trends over time",
+        options=all_programs
+    )
+    
+    # Filter data for selected program
+    program_data = filtered_data[filtered_data['Alternative name of bachelor'].astype(str) == selected_program]
+    
+    # Group by year and gender
+    program_gender_years = program_data.groupby(['Year', 'Gender']).size().reset_index(name='Count')
+    
+    # Calculate totals per year
+    program_years_total = program_gender_years.groupby('Year')['Count'].sum().reset_index()
+    program_years_total.columns = ['Year', 'Total']
+    
+    # Merge to get percentages
+    program_gender_years = pd.merge(program_gender_years, program_years_total, on='Year')
+    program_gender_years['Percentage'] = (program_gender_years['Count'] / program_gender_years['Total'] * 100).round(1)
+    
+    # Filter to only include Male and Female
+    program_gender_years = program_gender_years[program_gender_years['Gender'].isin(['Male', 'Female'])]
+    
+    # Create line chart for absolute numbers
+    fig_count = px.line(
+        program_gender_years,
+        x='Year',
+        y='Count',
+        color='Gender',
+        markers=True,
+        color_discrete_map={
+            'Male': '#004A93',  # ITAM blue
+            'Female': '#FF6600'  # Orange
+        }
+    )
+    
+    fig_count.update_layout(
+        title=f'Number of Graduates by Gender for {selected_program}',
+        xaxis_title='Year',
+        yaxis_title='Number of Graduates',
+        height=400,
+        legend_title='Gender'
+    )
+    
+    # Add hover information
+    fig_count.update_traces(
+        hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Graduates: %{y:,}<extra></extra>'
+    )
+    
+    st.plotly_chart(fig_count, use_container_width=True)
+    
+    # Create area chart for percentages
+    fig_pct = px.area(
+        program_gender_years,
+        x='Year',
+        y='Percentage',
+        color='Gender',
+        color_discrete_map={
+            'Male': '#004A93',  # ITAM blue
+            'Female': '#FF6600'  # Orange
+        }
+    )
+    
+    fig_pct.update_layout(
+        title=f'Gender Distribution for {selected_program} Over Time (%)',
+        xaxis_title='Year',
+        yaxis_title='Percentage (%)',
+        height=400,
+        legend_title='Gender'
+    )
+    
+    # Add hover information
+    fig_pct.update_traces(
+        hovertemplate='<b>%{fullData.name}</b><br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>'
+    )
+    
+    st.plotly_chart(fig_pct, use_container_width=True)
 
 # Also add a table showing the top programs for selected years
 st.markdown("<h3 class='subsection-header'>Top Programs by Selected Years</h3>", unsafe_allow_html=True)
@@ -475,7 +873,7 @@ fig.update_layout(hovermode='closest')
 st.plotly_chart(fig, use_container_width=True)
 
 # Heatmap of graduates by year and bachelor with Plotly
-st.markdown("<h3 class='subsection-header'>Heatmap: Graduates by Year and Bachelor</h3>", unsafe_allow_html=True)
+#st.markdown("<h3 class='subsection-header'>Heatmap: Graduates by Year and Bachelor</h3>", unsafe_allow_html=True)
 
 # Create pivot table for all programs
 pivot_all = pd.crosstab(filtered_data['Year'], filtered_data['Alternative name of bachelor'].astype(str))
@@ -512,6 +910,7 @@ if len(multiple_degrees_data) > 0:
     multiple_degree_students = len(name_counts)
     percentage = (multiple_degree_students / total_students) * 100
     
+    # Create 3 columns for metrics
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -529,50 +928,65 @@ if len(multiple_degrees_data) > 0:
     # Count how many degrees each person has
     degree_counts = name_counts.reset_index()
     degree_counts.columns = ['Student', 'Number of Degrees']
+    
+    # No debug info needed
+    
     degree_distribution = degree_counts['Number of Degrees'].value_counts().sort_index().reset_index()
     degree_distribution.columns = ['Number of Degrees', 'Count']
     
-    col1, col2 = st.columns(2)
+    # Calculate percentages
+    degree_distribution['Percentage'] = (degree_distribution['Count'] / degree_distribution['Count'].sum() * 100).round(2)
     
-    with col1:
-        fig = px.bar(
-            degree_distribution,
-            x='Number of Degrees',
-            y='Count',
-            color_discrete_sequence=['#00723F']  # Use ITAM green for all bars
-        )
-        fig.update_layout(
-            title='Number of People by Degree Count',
-            xaxis_title='Number of Degrees',
-            yaxis_title='Count of People',
-            height=400,
-            hovermode='closest'
-        )
-        # Format x-axis to show integers (no decimals)
-        fig.update_xaxes(tickformat='d')
-        # Format y-axis to show comma separators
-        fig.update_yaxes(tickformat=',')
-        # Add hover information
-        fig.update_traces(
-            hovertemplate='<b>Degrees: %{x}</b><br>People: %{y:,}<br>Percentage: %{customdata:.2f}%<extra></extra>',
-            customdata=degree_distribution['Number of Degrees'].map(
-                lambda x: (degree_distribution.loc[degree_distribution['Number of Degrees'] == x, 'Count'].iloc[0] / 
-                          degree_distribution['Count'].astype(float).sum() * 100)
-            )
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    # Create labels for the pie chart
+    degree_distribution['Label'] = degree_distribution['Number of Degrees'].apply(
+        lambda x: f"{int(x)} Degrees: {degree_distribution.loc[degree_distribution['Number of Degrees'] == x, 'Count'].iloc[0]:,} ({degree_distribution.loc[degree_distribution['Number of Degrees'] == x, 'Percentage'].iloc[0]:.2f}%)"
+    )
     
-    with col2:
-        # Calculate percentages
-        degree_distribution['Percentage'] = (degree_distribution['Count'] / degree_distribution['Count'].sum() * 100).round(2)
-        degree_distribution['Percentage'] = degree_distribution['Percentage'].apply(lambda x: f"{x:.2f}%")
-        degree_distribution['Count'] = degree_distribution['Count'].apply(lambda x: f"{x:,}")
-        
-        # Drop the 'Number of Degrees' column for display
-        display_distribution = degree_distribution[['Count', 'Percentage']]
-        
-        st.write("Distribution of Degrees per Person")
-        st.dataframe(display_distribution, use_container_width=True)
+    # Create a donut pie chart
+    fig = go.Figure(data=[go.Pie(
+        labels=degree_distribution['Label'],
+        values=degree_distribution['Count'],
+        hole=0.6,  # Larger hole for better aesthetics
+        textinfo='label',
+        textposition='outside',
+        # Use blue and orange color scheme with 3 degrees specifically as orange
+        marker=dict(
+            # Assign colors based on the number of degrees
+            colors=[
+                '#004A93' if x == 2 else  # Blue for 2 degrees
+                '#FF6600' if x == 3 else  # Orange for 3 degrees
+                '#0066CC' if x == 4 else  # Light blue for 4 degrees
+                '#FF9933'                 # Light orange for any other number
+                for x in degree_distribution['Number of Degrees']
+            ],
+            line=dict(color='#FFFFFF', width=2)
+        ),
+        pull=[0.05] * len(degree_distribution),  # Slightly pull all slices for better visibility
+        rotation=90  # Start from the top
+    )])
+    
+    fig.update_layout(
+        #title='Distribution of People by Number of Degrees',
+        height=500,
+        width=700,  # Set a specific width to make it less wide
+        margin=dict(l=50, r=50, t=80, b=50),  # Adjust margins for better centering
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5
+        ),
+        # Remove the middle annotation
+        showlegend=True
+    )
+    
+    # Add hover information
+    fig.update_traces(
+        hovertemplate='<b>%{label}</b><br>Count: %{value:,}<br>Percentage: %{percent:.1%}<extra></extra>'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
     
     # Most common degree combinations
     st.markdown("<h3 class='subsection-header'>Most Common Degree Combinations</h3>", unsafe_allow_html=True)
