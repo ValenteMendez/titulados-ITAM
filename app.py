@@ -7,6 +7,7 @@ import numpy as np
 from io import StringIO
 import re
 import os
+import string
 
 # Set page config
 st.set_page_config(
@@ -1038,6 +1039,229 @@ if len(multiple_degrees_data) > 0:
     st.dataframe(common_combinations)
 else:
     st.info("No people with multiple degrees found in the filtered data.")
+
+# ===== OTHER RANDOM STATS SECTION =====
+st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
+st.markdown("<h2 class='section-header'>Other Random Stats</h2>", unsafe_allow_html=True)
+#st.markdown("<p>Exploring interesting patterns in last names and their distribution across years and programs.</p>", unsafe_allow_html=True)
+
+# Extract the last name (first word in the Student column)
+filtered_data['Last_Name'] = filtered_data['Student'].str.split().str[0]
+
+# ===== VISUALIZATION 3: BUBBLE CHART OF LAST NAME INITIALS BY YEAR =====
+st.markdown("<h3 class='subsection-header'>Last Name Initial Letters by Year</h3>", unsafe_allow_html=True)
+
+# Get the first letter of the last name and convert to uppercase
+filtered_data['First_Letter'] = filtered_data['Last_Name'].str[0].str.upper()
+
+# Filter out any non-alphabetic first letters
+letter_data = filtered_data[filtered_data['First_Letter'].str.match('[A-Z]')]
+
+# Create a cross-tabulation of years and first letters
+crosstab_data = pd.crosstab(letter_data['First_Letter'], letter_data['Year'])
+
+# Convert to long format for Plotly
+bubble_data = []
+for letter in crosstab_data.index:
+    for year in crosstab_data.columns:
+        count = crosstab_data.loc[letter, year]
+        if count > 0:
+            bubble_data.append({
+                'Letter': letter,
+                'Year': year,
+                'Count': count
+            })
+
+bubble_df = pd.DataFrame(bubble_data)
+
+# Create a list of grey shades from dark to light
+# Map each letter to a shade of grey based on its position in the alphabet
+alphabet = string.ascii_uppercase
+grey_shades = []
+for i, letter in enumerate(alphabet):
+    # Calculate a hex value from dark grey (#333333) to light grey (#DDDDDD)
+    # based on position in alphabet
+    intensity = 51 + int((i / 25) * 170)  # Maps to range ~51-221
+    hex_color = f'#{intensity:02x}{intensity:02x}{intensity:02x}'
+    grey_shades.append(hex_color)
+
+# Create bubble chart with Plotly
+fig = px.scatter(
+    bubble_df,
+    x='Year',
+    y='Letter',
+    size='Count',
+    color='Letter',
+    color_discrete_map={letter: grey_shades[i] for i, letter in enumerate(alphabet)},
+    hover_name='Letter',
+    size_max=50,  # Maximum bubble size
+)
+fig.update_layout(
+    title='Distribution of Last Name Initial Letters by Graduation Year',
+    xaxis_title='Graduation Year',
+    yaxis_title='First Letter of Last Name',
+    height=700,
+    yaxis={'categoryorder': 'category descending'},  # Sort A-Z from top to bottom
+    hovermode='closest',
+    showlegend=False,  # Remove the letter labels
+    # Set x-axis range to match the actual data range
+    xaxis=dict(
+        range=[bubble_df['Year'].min() - 1, bubble_df['Year'].max() + 1]
+    )
+)
+# Add hover information
+fig.update_traces(
+    hovertemplate='<b>Letter %{hovertext}</b><br>Year: %{x}<br>Count: %{marker.size:,}<extra></extra>'
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# Add a checkbox to show detailed data
+show_letter_data = st.checkbox("*show detailed data for last name initials*", key="letter_data_checkbox")
+
+if show_letter_data:
+    # Create a heatmap of the letter distribution by year
+    fig = px.imshow(
+        crosstab_data,
+        labels=dict(x="Year", y="First Letter", color="Count"),
+        color_continuous_scale=[[0, 'white'], [0.01, '#f0f9f1'], [1, '#00723F']],  # Custom scale from white to ITAM green
+        aspect="auto"
+    )
+    
+    # Get all letters in alphabetical order for y-axis (A to Z)
+    all_letters = sorted(crosstab_data.index.tolist())
+    
+    fig.update_layout(
+        title='Heatmap of Last Name Initial Letters by Year',
+        height=700,
+        # Explicitly set the y-axis categories to have A at top and Z at bottom
+        yaxis={'categoryorder': 'array', 'categoryarray': all_letters, 'autorange': 'reversed'},
+        hovermode='closest'
+    )
+    # Add hover information
+    fig.update_traces(
+        hovertemplate='<b>Letter: %{y}</b><br>Year: %{x}<br>Count: %{z:,}<extra></extra>'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Show a table with the most common letters overall
+    letter_counts = letter_data['First_Letter'].value_counts().reset_index()
+    letter_counts.columns = ['Letter', 'Count']
+    letter_counts['Percentage'] = (letter_counts['Count'] / letter_counts['Count'].sum() * 100).round(2)
+    
+    # Add a Rank column starting from 1
+    letter_counts.insert(0, 'Rank', range(1, len(letter_counts) + 1))
+    
+    st.write("Distribution of Last Name Initial Letters:")
+    
+    # Format the Count and Percentage columns
+    letter_counts['Count'] = letter_counts['Count'].apply(lambda x: f"{x:,}")
+    letter_counts['Percentage'] = letter_counts['Percentage'].apply(lambda x: f"{x:.2f}%")
+    
+    # Display the dataframe without the index by setting it as None
+    letter_counts = letter_counts.set_index('Rank')
+    st.dataframe(letter_counts, use_container_width=True)
+
+# ===== VISUALIZATION 1: TOP 20 LAST NAMES =====
+st.markdown("<h3 class='subsection-header'>Most Common Last Names</h3>", unsafe_allow_html=True)
+
+# Count the frequency of each last name
+last_name_counts = filtered_data['Last_Name'].value_counts().reset_index()
+last_name_counts.columns = ['Last_Name', 'Count']
+
+# Get the top 20 last names
+top_20_last_names = last_name_counts.head(20)
+
+# Create a horizontal bar chart
+fig = px.bar(
+    top_20_last_names,
+    x='Count',
+    y='Last_Name',
+    orientation='h',
+    color_discrete_sequence=['#00723F']  # Use ITAM green for all bars
+)
+fig.update_layout(
+    title='Top 20 Most Common Last Names Among ITAM Graduates',
+    xaxis_title='Number of Graduates',
+    yaxis_title='Last Name',
+    height=600,
+    yaxis={'categoryorder': 'total ascending'},
+    hovermode='closest'
+)
+# Add hover information
+fig.update_traces(
+    hovertemplate='<b>%{y}</b><br>Count: %{x:,}<extra></extra>'
+)
+# Add text showing count
+fig.update_traces(
+    text=top_20_last_names['Count'],
+    textposition='outside'
+)
+
+# Calculate what percentage of total graduates these top 20 names represent
+top_20_count = top_20_last_names['Count'].sum()
+total_count = filtered_data.shape[0]
+top_20_percentage = (top_20_count / total_count) * 100
+
+st.plotly_chart(fig, use_container_width=True)
+
+# Add a note below the chart
+st.markdown(f"""
+<div style='font-size: 0.9rem; color: #666; font-style: italic; text-align: left; margin-top: -15px; margin-bottom: 20px;'>
+    These top 20 last names represent <b>{top_20_percentage:.2f}%</b> of all ITAM graduates. 
+    'DE' is kept separately as an indicator of compound last names.
+</div>
+""", unsafe_allow_html=True)
+
+# ===== VISUALIZATION 2: TOP 20 LAST NAMES VS BACHELOR DEGREES =====
+#st.markdown("<h3 class='subsection-header'>Last Names Distribution Across Programs</h3>", unsafe_allow_html=True)
+
+# Get the top 20 last names list in order of frequency
+top_20_last_names_list = top_20_last_names['Last_Name'].tolist()
+
+# Filter data for only the top 20 last names
+top_20_data = filtered_data[filtered_data['Last_Name'].isin(top_20_last_names_list)]
+
+# Create a cross-tabulation of last names and alternative bachelor names
+heatmap_data = pd.crosstab(top_20_data['Last_Name'], top_20_data['Alternative name of bachelor'])
+
+# Sort the index to match the order of top 20 last names by frequency
+heatmap_data = heatmap_data.reindex(top_20_last_names_list)
+
+# Convert to long format for Plotly
+heatmap_long = heatmap_data.reset_index().melt(
+    id_vars=['Last_Name'],
+    var_name='Bachelor',
+    value_name='Count'
+)
+
+# Create heatmap with Plotly
+fig = px.density_heatmap(
+    heatmap_long,
+    x='Bachelor',
+    y='Last_Name',
+    z='Count',
+    color_continuous_scale=[[0, 'white'], [0.01, '#f0f9f1'], [1, '#00723F']],  # Custom scale from white to ITAM green
+)
+
+# Reverse the order of last names to have most frequent at the top
+reversed_last_names = top_20_last_names_list.copy()
+reversed_last_names.reverse()
+
+fig.update_layout(
+    title='Distribution of Top 20 Last Names Across Bachelor Degrees',
+    xaxis_title='Bachelor Program',
+    yaxis_title='Last Name',
+    height=700,
+    xaxis={'tickangle': 45},
+    # Set the y-axis to display last names in order of frequency (most frequent at top)
+    yaxis={'categoryorder': 'array', 'categoryarray': reversed_last_names},
+    hovermode='closest'
+)
+# Add hover information
+fig.update_traces(
+    hovertemplate='<b>%{y}</b> - <b>%{x}</b><br>Count: %{z:,}<extra></extra>'
+)
+st.plotly_chart(fig, use_container_width=True)
 
 # Add footer with attribution
 st.markdown("---")
